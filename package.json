@@ -1,0 +1,18 @@
+{
+  "name": "greencode",
+  "version": "1.0.0",
+  "description": "Sistema CLI de logística reversa de resíduos eletrônicos (AV1)",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "test:test1": "tsx src/tests/test1.ts"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}

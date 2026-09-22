@@ -1,12 +1,12 @@
 # GreenCode — Documentação do Projeto (AV1)
 
-> Documento de visão geral criado para organizar o desenvolvimento, de acordo com o enunciado da AV1 (prof. Gerson Penha) e no diagrama de classes UML.
+> Documento da visão geral criado para organizar o desenvolvimento, seguindo o que foi pedido na AV1 e no diagrama de classes UML.
 
 ## 1. Contexto do problema 
 
-A proposta é uma startup que atua como **intermediária de logística reversa de resíduos eletrônicos**: conecta empresas que descartam equipamentos (bancos, hospitais, redes de varejo) a operadores logísticos, especialistas em desmontagem e compradores de matéria-prima reciclada. O valor do negócio vem de **rastrear cada equipamento** do recebimento até o destino final, gerando dados de rastreabilidade, relatórios e conformidade ambiental.
+Uma startup que atua como **intermediária de logística reversa de resíduos eletrônicos**: conecta empresas que descartam equipamentos (bancos, hospitais, redes de varejo) a operadores logísticos, especialistas em desmontagem e compradores de matéria-prima reciclada. O valor do negócio vem de **rastrear cada equipamento** do recebimento até o destino final, gerando dados de rastreabilidade, relatórios e conformidade ambiental.
 
-A primeira entrega desse negócio é um **sistema CLI chamado `greencode`**, construído em **Node.js + TypeScript**, com persistência em arquivos de texto (sem banco de dados).
+A primeira entrega é um **sistema CLI**, construído em **Node.js + TypeScript**, com persistência em arquivos de texto.
 
 ## 2. Papéis do sistema (RBAC)
 
@@ -17,7 +17,7 @@ A primeira entrega desse negócio é um **sistema CLI chamado `greencode`**, con
 | **Gestor de Almoxarifado** | Registra chegada de lotes, triagem, códigos de barras internos |
 | **Auditor** | Só consulta histórico e gera relatórios — nenhuma escrita |
 
-## 3. Requisitos técnicos obrigatórios 
+## 3. Requisitos técnicos
 
 **Segurança**
 - Senhas com hash SHA-256 + salt por usuário (armazenados em arquivo separado — ver classe `Credencial`)
@@ -43,20 +43,18 @@ A primeira entrega desse negócio é um **sistema CLI chamado `greencode`**, con
 **Compatibilidade**
 - Windows 10+ e Ubuntu 24.04+ (e derivados)
 
-## 4. Modelo de classes (resumo por camada)
-
-*(o diagrama completo, com atributos e métodos, é o enviado pelo professor — aqui é só o mapa de onde cada coisa mora)*
+## 4. Modelo de classes
 
 | Camada | Classes |
 |---|---|
-| Interface | `CLInterface` |
-| Serviços | `ServicoAutenticacao`, `ServicoOrganizacao`, `ServicoLote`, `ServicoEquipamentos`, `ServicoRelatorios` |
-| Persistência | `RepositorioArquivos`, `CriptografiaArquivo`, `JournalTransacao` |
+| Interface | `CLIInterface` |
+| Serviços | `ServicoAutenticacao`, `ServicoOrganizacao`, `ServicoLote`, `ServicoEquipamento`, `ServicoRelatorio` |
+| Persistência | `RepositorioArquivo`, `CriptografiaArquivo`, `JournalTransacao` |
 | Entidades | `Organizacao`, `Contrato`, `Lote`, `Equipamento`, `Credencial`, `Sessao`, `Movimentacao` |
-| Validação | `Validador<T>` (abstrata), `ValidadorCNPJ`, `ValidadorDataEntrada` |
+| Validação | `Validador` (abstrata), `ValidadorCNPJ`, `ValidadorDataEntrada` |
 | Enums | `PapelUsuario`, `StatusLote`, `TipoEquipamento`, `EstadoFisico`, `StatusRastreamento` |
 
-## 5. Documentos que exigidas
+## 5. Documentos exigidos
 
 - Código-fonte funcional (`greencode`)
 - Diagrama de Classes UML (recebido do professor)

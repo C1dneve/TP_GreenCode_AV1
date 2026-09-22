@@ -30,8 +30,8 @@ O `greencode` é o núcleo operacional de uma plataforma de logística reversa d
 Toda a documentação do projeto está na pasta [`docs/`](./docs):
 
 - [Visão Geral do Projeto](docs/greencode-documentacao-projeto.md) — contexto, requisitos técnicos, modelo de classes e ordem de implementação
-- [Épicos e User Stories](docs/greencode-anexo-epicos-user-stories.md) — material complementar quebrando os requisitos em épicos e histórias de usuário
-- Diagrama de Classes (UML) — fornecido pelo professor
+- [Épicos e User Stories](docs/greencode-epicos-USs.md) — material complementar 
+- [Diagrama de Classes](docs/diagrama_classes.png) (UML) — fornecido pelo professor
 
 
 ## Como rodar
@@ -41,7 +41,3 @@ _Instruções de instalação e execução serão adicionadas depois._
 ## Compatibilidade
 
 Windows 10+ e Linux Ubuntu 24.04+ (e derivados).
-
-## Autor
-
-Projeto individual — Fatec, curso de Desenvolvimento de Software Multiplataforma (DSM).
