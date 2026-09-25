@@ -1,4 +1,3 @@
-
 export class Contrato {
   id: string;
   organizacaoId: string;
@@ -14,22 +13,50 @@ export class Contrato {
     dataVencimento: Date,
     valorMensal: number,
     clausulas: string[] = [],
-    renovacaoAutomatica: boolean = false
+    renovacaoAutomatica: boolean = false,
+    dataAssinatura: Date = new Date()
   ) {
     this.id = id;
     this.organizacaoId = organizacaoId;
-    this.dataAssinatura = new Date();
-    this.dataVencimento = dataVencimento;
-    this.clausulas = clausulas;
+    this.dataAssinatura = new Date(dataAssinatura);
+    this.dataVencimento = new Date(dataVencimento);
+    this.clausulas = [...clausulas];
     this.valorMensal = valorMensal;
     this.renovacaoAutomatica = renovacaoAutomatica;
   }
 
-  Vigente(): boolean {
+  estaVigente(): boolean {
     return new Date() <= this.dataVencimento;
   }
 
-  renova(novoVencimento: Date): void {
-    this.dataVencimento = novoVencimento;
+  renovar(novoVencimento: Date): void {
+    if (novoVencimento <= this.dataVencimento) {
+      throw new Error("O novo vencimento deve ser posterior ao vencimento atual.");
+    }
+    this.dataVencimento = new Date(novoVencimento);
+  }
+
+  static deDados(dados: Record<string, any>): Contrato {
+    return new Contrato(
+      String(dados.id),
+      String(dados.organizacaoId),
+      new Date(dados.dataVencimento),
+      Number(dados.valorMensal),
+      Array.isArray(dados.clausulas) ? dados.clausulas.map(String) : [],
+      Boolean(dados.renovacaoAutomatica),
+      new Date(dados.dataAssinatura)
+    );
+  }
+
+  paraDados(): Record<string, unknown> {
+    return {
+      id: this.id,
+      organizacaoId: this.organizacaoId,
+      dataAssinatura: this.dataAssinatura.toISOString(),
+      dataVencimento: this.dataVencimento.toISOString(),
+      clausulas: [...this.clausulas],
+      valorMensal: this.valorMensal,
+      renovacaoAutomatica: this.renovacaoAutomatica,
+    };
   }
 }

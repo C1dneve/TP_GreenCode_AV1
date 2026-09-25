@@ -35,36 +35,98 @@ export class Equipamento {
     this.anoFabricacao = anoFabricacao;
     this.estadoFisico = estadoFisico;
     this.pesoQuilogramas = pesoQuilogramas;
-
     this.loteId = '';
     this.posicaoNoLote = -1;
-
     this.statusRastreamento = StatusRastreamento.AGUARDANDO_TRIAGEM;
     this.historicoMovimentacao = [];
   }
 
-  atualizaStatus(novoStatus: StatusRastreamento, justificativa: string): void {
-    if (!justificativa || justificativa.trim().length === 0) {
+
+  atualizarStatus(novoStatus: StatusRastreamento, justificativa: string): void {
+    if (!justificativa.trim()) {
+      throw new Error('É obrigatório informar uma justificativa para alterar o status de rastreamento.');
+    }
+
+    if (
+      novoStatus === StatusRastreamento.EM_DESMONTE &&
+      this.statusRastreamento !== StatusRastreamento.AGUARDANDO_DESMONTE
+    ) {
       throw new Error(
-        'É obrigatório informar uma justificativa para alterar o status de rastreamento.'
+        'O equipamento só pode entrar em desmonte após a triagem completa.'
       );
     }
+
     this.statusRastreamento = novoStatus;
   }
 
-  registraMovimentacao(destino: string, responsavel: string, observacao: string = ''): void {
-    const ultima = this.historicoMovimentacao[this.historicoMovimentacao.length - 1];
-    const origem = ultima ? ultima.destino : this.loteId;
+  registrarMovimentacao(
+    destino: string,
+    responsavel: string,
+    observacao: string = ''
+  ): void {
+    const ultimaMovimentacao =
+      this.historicoMovimentacao[this.historicoMovimentacao.length - 1];
+    const origem = ultimaMovimentacao?.destino ?? this.loteId;
     const idMovimentacao = `${this.id}-mov-${this.historicoMovimentacao.length + 1}`;
-    const movimentacao = new Movimentacao(idMovimentacao, this.id, origem, destino, responsavel, observacao);
-    this.historicoMovimentacao.push(movimentacao);
+
+    this.historicoMovimentacao.push(
+      new Movimentacao(
+        idMovimentacao,
+        this.id,
+        origem,
+        destino,
+        responsavel,
+        observacao
+      )
+    );
   }
 
-  calculaDepreciacao(): number {
+  calcularDepreciacao(): number {
     const TAXA_DEPRECIACAO_ANUAL = 0.15;
     const anoAtual = new Date().getFullYear();
     const idadeAnos = Math.max(0, anoAtual - this.anoFabricacao);
     const fatorRestante = Math.max(0, 1 - TAXA_DEPRECIACAO_ANUAL * idadeAnos);
-    return fatorRestante; 
+    return fatorRestante;
+  }
+
+  static deDados(dados: Record<string, any>): Equipamento {
+    const equipamento = new Equipamento(
+      String(dados.id),
+      String(dados.codigoBarrasInterno),
+      dados.tipo as TipoEquipamento,
+      String(dados.marca),
+      String(dados.modelo),
+      Number(dados.anoFabricacao),
+      dados.estadoFisico as EstadoFisico,
+      Number(dados.pesoQuilogramas)
+    );
+
+    equipamento.loteId = String(dados.loteId ?? '');
+    equipamento.posicaoNoLote = Number(dados.posicaoNoLote ?? -1);
+    equipamento.statusRastreamento = dados.statusRastreamento as StatusRastreamento;
+    equipamento.historicoMovimentacao = Array.isArray(dados.historicoMovimentacao)
+      ? dados.historicoMovimentacao.map((item: Record<string, any>) =>
+          Movimentacao.deDados(item)
+        )
+      : [];
+
+    return equipamento;
+  }
+
+  paraDados(): Record<string, unknown> {
+    return {
+      id: this.id,
+      codigoBarrasInterno: this.codigoBarrasInterno,
+      tipo: this.tipo,
+      marca: this.marca,
+      modelo: this.modelo,
+      anoFabricacao: this.anoFabricacao,
+      estadoFisico: this.estadoFisico,
+      pesoQuilogramas: this.pesoQuilogramas,
+      loteId: this.loteId,
+      posicaoNoLote: this.posicaoNoLote,
+      statusRastreamento: this.statusRastreamento,
+      historicoMovimentacao: this.historicoMovimentacao.map((item) => item.paraDados()),
+    };
   }
 }
