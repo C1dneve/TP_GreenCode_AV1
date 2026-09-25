@@ -1,4 +1,4 @@
 export interface Autenticavel {
-  autentica(usuario: string, senha: string): boolean;
-  renovaToken(): string;
+  autenticar(usuario: string, senha: string): boolean;
+  renovarToken(): string;
 }

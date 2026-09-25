@@ -1,6 +1,6 @@
+import { randomBytes } from "crypto";
 import { Autenticavel } from "./Autenticavel";
 import { PapelUsuario } from "./enums/PapelUsuario";
-import * as crypto from "crypto";
 
 export class Sessao implements Autenticavel {
   private token: string;
@@ -9,36 +9,67 @@ export class Sessao implements Autenticavel {
   private criacao: Date;
   private expiracao: Date;
 
+  private static readonly TEMPO_INATIVIDADE_MINUTOS = 30;
+
   constructor(usuario: string, papel: PapelUsuario) {
     this.usuario = usuario;
     this.papel = papel;
     this.criacao = new Date();
-    this.token = this.geraToken();
-
-    this.expiracao = new Date();
-    this.expiracao.setMinutes(this.criacao.getMinutes() + 30);
+    this.token = this.gerarToken();
+    this.expiracao = this.calcularNovaExpiracao();
   }
 
-  private geraToken(): string {
-    return crypto.randomBytes(24).toString("hex");
+  private gerarToken(): string {
+    return randomBytes(32).toString("hex");
+  }
+
+  private calcularNovaExpiracao(): Date {
+    const novaExpiracao = new Date();
+    novaExpiracao.setMinutes(
+      novaExpiracao.getMinutes() + Sessao.TEMPO_INATIVIDADE_MINUTOS
+    );
+    return novaExpiracao;
   }
 
   isValida(): boolean {
     return new Date() < this.expiracao;
   }
 
-  renova(): void {
-    this.expiracao = new Date();
-    this.expiracao.setMinutes(new Date().getMinutes() + 30);
+  renovar(): void {
+    this.expiracao = this.calcularNovaExpiracao();
   }
 
-  autentica(usuario: string, senha: string): boolean {
+  registrarAtividade(): void {
+    this.renovar();
+  }
+
+  autenticar(usuario: string, _senha: string): boolean {
     return usuario === this.usuario && this.isValida();
   }
 
-  renovaToken(): string {
-    this.renova();
-    this.token = this.geraToken();
+  renovarToken(): string {
+    this.renovar();
+    this.token = this.gerarToken();
     return this.token;
+  }
+
+  obterToken(): string {
+    return this.token;
+  }
+
+  obterUsuario(): string {
+    return this.usuario;
+  }
+
+  obterPapel(): PapelUsuario {
+    return this.papel;
+  }
+
+  obterCriacao(): Date {
+    return new Date(this.criacao);
+  }
+
+  obterExpiracao(): Date {
+    return new Date(this.expiracao);
   }
 }

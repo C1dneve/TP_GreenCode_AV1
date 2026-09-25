@@ -1,7 +1,14 @@
+import { createHash, randomBytes } from "crypto";
 import { Autenticavel } from "./Autenticavel";
 import { PapelUsuario } from "./enums/PapelUsuario";
-import * as crypto from "crypto";
 
+/**
+ * Representa uma credencial persistível do sistema.
+ *
+ * O projeto exige SHA-256 + salt. A implementação abaixo mantém exatamente
+ * esse contrato do enunciado. Em uma aplicação real, uma função de derivação
+ * de senha resistente a brute force seria preferível.
+ */
 export class Credencial implements Autenticavel {
   private usuario: string;
   private hashSenha: string;
@@ -13,28 +20,78 @@ export class Credencial implements Autenticavel {
     this.usuario = usuario;
     this.papel = papel;
     this.ultimoAcesso = new Date();
-
-    this.salt = crypto.randomBytes(16).toString("hex");
-    this.hashSenha = this.geraHash(senha, this.salt);
+    this.salt = randomBytes(16).toString("hex");
+    this.hashSenha = this.gerarHash(senha, this.salt);
   }
 
-  private geraHash(senha: string, salt: string): string {
-    return crypto.createHash("sha256").update(senha + salt).digest("hex");
+
+  private gerarHash(senha: string, salt: string): string {
+    return createHash("sha256").update(`${senha}${salt}`).digest("hex");
   }
 
-  verificaSenha(senhaPlana: string): boolean {
-    return this.geraHash(senhaPlana, this.salt) === this.hashSenha;
+
+  verificarSenha(senhaPlana: string): boolean {
+    return this.gerarHash(senhaPlana, this.salt) === this.hashSenha;
   }
+
 
   atualizarUltimoAcesso(): void {
     this.ultimoAcesso = new Date();
   }
 
-  autentica(usuario: string, senha: string): boolean {
-    return usuario === this.usuario && this.verificaSenha(senha);
+
+  alterarSenha(novaSenha: string): void {
+    this.salt = randomBytes(16).toString("hex");
+    this.hashSenha = this.gerarHash(novaSenha, this.salt);
   }
 
-  renovaToken(): string {
-    return "";
+
+  autenticar(usuario: string, senha: string): boolean {
+    const autenticado = usuario === this.usuario && this.verificarSenha(senha);
+
+    if (autenticado) {
+      this.atualizarUltimoAcesso();
+    }
+
+    return autenticado;
+  }
+
+
+  renovarToken(): string {
+    return randomBytes(24).toString("hex");
+  }
+
+
+  obterUsuario(): string {
+    return this.usuario;
+  }
+
+
+  obterPapel(): PapelUsuario {
+    return this.papel;
+  }
+
+  obterUltimoAcesso(): Date {
+    return new Date(this.ultimoAcesso);
+  }
+
+  paraDados(): Record<string, unknown> {
+    return {
+      usuario: this.usuario,
+      hashSenha: this.hashSenha,
+      salt: this.salt,
+      ultimoAcesso: this.ultimoAcesso.toISOString(),
+      papel: this.papel,
+    };
+  }
+
+  static deDados(dados: Record<string, any>): Credencial {
+    const credencial = Object.create(Credencial.prototype) as Credencial;
+    credencial.usuario = String(dados.usuario);
+    credencial.hashSenha = String(dados.hashSenha);
+    credencial.salt = String(dados.salt);
+    credencial.ultimoAcesso = new Date(dados.ultimoAcesso);
+    credencial.papel = dados.papel as PapelUsuario;
+    return credencial;
   }
 }
