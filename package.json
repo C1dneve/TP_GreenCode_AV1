@@ -7,7 +7,8 @@
     "build": "tsc",
     "test:test1": "tsx src/tests/test1.ts",
     "test:test2": "tsx src/tests/test2.ts",
-    "test:test3": "tsx src/tests/test3.ts"
+    "test:test3": "tsx src/tests/test3.ts",
+    "test:test4": "tsx src/tests/test4.ts"
   },
   "author": "",
   "license": "ISC",

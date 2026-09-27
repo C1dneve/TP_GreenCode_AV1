@@ -262,4 +262,21 @@ export class ServicoAutenticacao {
   private obterCaminhoConfiguracao(): string {
     return path.join(this.diretorioBase, "config.mestre.json");
   }
+
+   obterRepositorio(): RepositorioArquivos | undefined {
+    return this.repositorio;
+  }
+
+  obterChave(): string | undefined {
+    return this.chave;
+  }
+
+  obterDiretorioBase(): string {
+    return this.diretorioBase;
+  }
+
+  estaProvisionado(): boolean {
+    return Boolean(this.chave && this.repositorio);
+  }
+
 }
