@@ -1,49 +1,185 @@
 # GreenCode — Relatório de Cenários de Falha
 
-> Este relatório cobre os cenários de falha que testamos e como o sistema reagiu em cada um. É um complemento ao `greencode-roteiro-testes.md` — aqui o foco são os caminhos de erro, não os de sucesso.
+> Registro dos cenários de erro, segurança, integridade e robustez executados no GreenCode. Os resultados abaixo distinguem testes automatizados, testes manuais e o comportamento observado na validação final em Windows.
 
 ## 1. Falhas de validação de negócio
 
-| Cenário | Entrada | Resposta do sistema |
+| Cenário | Entrada / condição | Resultado |
 |---|---|---|
-| CNPJ com dígito verificador incorreto | `org criar --cnpj 11222333000182` (dígito errado) | Rejeitado pelo `ValidadorCNPJ`: "CNPJ inválido (dígito verificador não confere)." |
-| CNPJ com todos os dígitos iguais | `11111111111111` | Rejeitado antes mesmo de calcular o dígito: "CNPJ inválido (todos os dígitos iguais)." |
-| CNPJ duplicado | Cadastrar organização com CNPJ já existente | `ServicoOrganizacao` rejeita e avisa que já existe |
-| Data de lote no futuro | `dataEntrada` posterior a hoje | Rejeitado pelo `ValidadorDataEntrada`: "Data de entrada não pode ser futura." |
-| Data de lote muito antiga | `dataEntrada` anterior a 90 dias | Rejeitado: "Data de entrada não pode ser anterior a 90 dias." |
-| Desmonte sem triagem prévia | Tentar mover equipamento direto pra `EM_DESMONTE` sem triagem | Bloqueado no `ServicoLote`/`ServicoEquipamentos` |
-| Queda de estado físico sem justificativa | `atualizarEstadoFisico` com queda de 2+ categorias e `justificativa` vazia | `ServicoEquipamentos.atualizarEstadoFisico` rejeita e pede a justificativa |
+| CNPJ inválido | CNPJ com dígito verificador incorreto | Rejeitado pelo `ValidadorCNPJ`. |
+| CNPJ com todos os dígitos iguais | `11111111111111` | Rejeitado. |
+| CNPJ duplicado | Organização com CNPJ já cadastrado | Rejeitado pelo serviço de organizações. |
+| Data de lote futura | `dataEntrada` posterior a hoje | Rejeitado pelo `ValidadorDataEntrada`. |
+| Data de lote antiga | `dataEntrada` anterior a 90 dias | Rejeitado. |
+| Desmonte sem triagem | Equipamento direcionado ao desmonte antes da triagem | Bloqueado pela regra de negócio. |
+| Queda de estado físico sem justificativa | Queda de 2 ou mais categorias | Rejeitado e exige justificativa. |
+| Flag obrigatória ausente | Ex.: `lote criar --nf NF-ERRO --transp TransRapida` | Rejeitado com indicação da flag `--org`. |
+| Flag obrigatória vazia | Ex.: `lote criar --org --nf NF-ERRO --transp TransRapida` | Rejeitado com indicação da flag `--org`. |
+| Enum inválido | `relatorio status --status INVALIDO` | Rejeitado com indicação dos valores válidos. |
+| Papel inválido | `usuario criar --usuario usuario_x --papel PAPEL_INEXISTENTE` | Rejeitado antes da persistência. |
+| Data em formato inválido | `27/09/2026` | Rejeitada; formato aceito é `YYYY-MM-DD`. |
+| Data de calendário inválida | `2026-99-99` | Rejeitada. |
 
 ## 2. Falhas de autenticação e sessão
 
-| Cenário | Entrada | Resposta do sistema |
-|---|---|---|
-| Usuário inexistente | Login com usuário não cadastrado | "Usuário ou senha inválidos." — mensagem propositalmente genérica, pra não dar pista se o erro foi no usuário ou na senha (evita enumeração de contas) |
-| Senha incorreta | Login com senha errada num usuário existente | Mesma mensagem genérica de cima |
-| Sessão expirada | Comando enviado depois de 30 min sem atividade | A sessão cai sozinha e o sistema exige login de novo antes de aceitar qualquer coisa |
-| Token inválido/já encerrado | `validarToken` num token de sessão já finalizada (logout) | Retorna `false`; qualquer comando depois disso é bloqueado |
+| Cenário | Resultado |
+|---|---|
+| Usuário inexistente | Rejeitado com `Falha no login: Usuário ou senha inválidos.` |
+| Senha incorreta | Mesma mensagem genérica do usuário inexistente. |
+| Sessão expirada | Sessão invalidada e comando posterior rejeitado. |
+| Token invalidado por logout | Token deixa de ser aceito. |
+| Alteração de senha | Nova senha usada no login seguinte; senha anterior deixa de ser válida. |
 
-## 3. Falhas de controle de acesso (RBAC)
+A sessão expira após 30 minutos de inatividade.
 
-| Cenário | Entrada | Resposta do sistema |
-|---|---|---|
-| Comando fora do papel do usuário | Usuário `AUDITOR` tentando `org criar` | Bloqueado antes de chegar em qualquer serviço de negócio: "Comando 'org criar' não permitido para o papel AUDITOR." Testei isso na mão pra garantir. |
-| Comando inexistente | Comando digitado errado ou não reconhecido | Nada quebra — o sistema ignora ou sugere digitar "ajuda", dependendo do caso |
+## 3. Falhas e controles de RBAC
 
-## 4. Falhas de persistência e integridade
+| Cenário | Resultado |
+|---|---|
+| `OPERADOR_CADASTRO` tentando criar lote | Rejeitado por permissão. |
+| `OPERADOR_CADASTRO` tentando criar usuário | Rejeitado por permissão. |
+| `GESTOR_ALMOXARIFADO` tentando `equip rastrear` | Rejeitado por permissão. |
+| `GESTOR_ALMOXARIFADO` tentando criar organização | Rejeitado por permissão. |
+| `AUDITOR` tentando criar usuário | Rejeitado por permissão. |
+| `AUDITOR` tentando criar organização | Rejeitado por permissão. |
+| `AUDITOR` tentando criar lote/equipamento | Rejeitado por permissão. |
+| `AUDITOR` tentando alterar equipamento | Rejeitado por permissão. |
+| Comando não listado no menu, mas digitado manualmente | Continua sujeito à autorização e é rejeitado quando fora da matriz. |
+| Chamada direta ao serviço por usuário sem permissão | Rejeitada por `ServicoAutorizacao`. |
 
-| Cenário | Entrada | Resposta do sistema |
-|---|---|---|
-| Interrupção durante escrita em disco | Simulação de falha no meio de `salvarEntidade` | Escrita atômica (arquivo temporário + rename) garante que o arquivo definitivo nunca fica corrompido; na pior hipótese sobra um `.tmp` pra descartar |
-| Arquivo cifrado adulterado | Byte alterado manualmente num `.enc` | `CriptografiaArquivo.decifrar()` lança erro, porque a tag de autenticação do AES-256-GCM não bate — dado adulterado não passa |
-| Arquivo de dados ausente | Carregar uma entidade cujo arquivo ainda não existe | `RepositorioArquivos` trata como lista vazia em vez de dar erro; a primeira gravação cria o arquivo normalmente |
-| Configuração mestre ausente | Iniciar o sistema pela primeira vez | O sistema detecta e entra em modo de provisionamento, em vez de simplesmente falhar |
-| Transação com falha no meio da aplicação | `JournalTransacao.reverter()` chamado depois de uma operação malsucedida | O estado anterior (`dadosAntes`) é restaurado, desfazendo a mudança parcial |
+A proteção existe tanto na `CLIInterface` quanto nos serviços de negócio.
 
-## 5. Categorização das mensagens
+## 4. Persistência e integridade
 
-Toda resposta de erro sai com o prefixo `[ERRO]` na CLI (`CLIInterface.processarComando`), separando visualmente de `[OK]` — isso cobre o requisito do enunciado sobre mensagens de sucesso/erro categorizadas por severidade.
+| Cenário | Resultado / evidência |
+|---|---|
+| Escrita atômica | Implementada com arquivo temporário + `rename`; cobertura existente nos testes automatizados. |
+| Arquivo `.enc` adulterado | **PASSOU em 27/09/2026.** O ciphertext adulterado foi rejeitado pelo AES-256-GCM. |
+| Arquivo de dados ausente | Tratado pelo repositório como lista vazia até a primeira gravação. |
+| Configuração mestre ausente | **PASSOU manualmente.** O sistema entrou no provisionamento inicial. |
+| Transação com falha/reversão | Coberta pelos testes automatizados de `JournalTransacao`. |
+| Journal > 10 MB | **PASSOU.** O journal rotacionou e o novo arquivo ativo foi criado. |
+| Log da rotação | **PASSOU.** A mensagem `[INFO] Journal atingiu o limite. Rotacionando arquivo...` foi emitida. |
 
-## Uma ressalva sobre este relatório
+## 5. Entrada de senha mascarada
 
-A maior parte dos cenários acima foi de fato exercitada — seja pelos testes automatizados (`test1.ts` a `test4.ts`), seja manualmente durante o desenvolvimento. As duas exceções são os itens de adulteração de arquivo e interrupção de escrita simulada, na seção 4: a lógica está implementada e eu revisei o código, mas não cheguei a rodar os dois cenários de ponta a ponta. Vale confirmar isso manualmente antes de entregar — está detalhado no `greencode-roteiro-testes.md`.
+Durante a auditoria foi encontrado inicialmente um problema de interação entre `readline` e o modo raw da senha: uma senha digitada podia ser interpretada também pelo parser da CLI.
+
+O problema foi corrigido em `src/cli/CLIInterface.ts`.
+
+Após a correção, foram validados:
+
+```text
+123
+Abc123!@#
+```
+
+e também o fluxo de duas senhas em `senha alterar`.
+
+### Resultado final
+
+- senha aparece como `*`;
+- senha não aparece em texto puro;
+- senha não é interpretada como comando;
+- `ajuda` funciona imediatamente depois da senha;
+- não ocorre `ERR_USE_AFTER_CLOSE`.
+
+## 6. Categorização das mensagens
+
+Respostas de erro de comandos de negócio passam pela camada da CLI e são exibidas com:
+
+```text
+[ERRO]
+```
+
+Respostas de operações bem-sucedidas usam:
+
+```text
+[OK]
+```
+
+A rotação do journal usa:
+
+```text
+[INFO]
+```
+
+## 7. Cenários de falha validados na segunda auditoria
+
+### Validação de entrada
+
+- flags obrigatórias ausentes;
+- flags vazias;
+- enum inválido;
+- papel inválido;
+- datas em formato incorreto;
+- datas de calendário inválidas.
+
+Todos passaram conforme esperado.
+
+### Autenticação
+
+- login correto;
+- senha incorreta;
+- usuário inexistente;
+- alteração de senha;
+- login com nova senha;
+- logout;
+- sessão expirada.
+
+Todos passaram conforme esperado.
+
+### RBAC
+
+Os quatro papéis foram exercitados manualmente em ambiente Windows:
+
+- `ADMINISTRADOR`;
+- `OPERADOR_CADASTRO`;
+- `GESTOR_ALMOXARIFADO`;
+- `AUDITOR`.
+
+As operações previstas para cada papel funcionaram e os comandos fora da responsabilidade de cada perfil foram rejeitados.
+
+## 8. Testes finais realizados em Windows — 27/09/2026
+
+```text
+npm ci               PASSOU
+npm run build        PASSOU
+npx tsc --noEmit     PASSOU
+npm test             PASSOU
+npm start            PASSOU
+```
+
+`npm test` executou:
+
+```text
+test1
+test2
+test3
+test4
+```
+
+Todos terminaram com sucesso.
+
+A instalação apresentou somente um aviso do npm relacionado à política de scripts do `esbuild`; não houve impacto na compilação, nos testes ou na execução final.
+
+## 9. Observação sobre o que não foi reclassificado
+
+A interrupção física real de uma escrita em disco não foi simulada novamente como processo morto. A escrita atômica permanece implementada e coberta pelos testes existentes, mas este relatório não a marca como um cenário manual reproduzido nesta última rodada apenas por causa da implementação.
+
+## 10. Estado final
+
+Os dois cenários que estavam anteriormente pendentes — adulteração de `.enc` e journal acima de 10 MB — foram validados.
+
+A auditoria final também confirmou:
+
+- Factory;
+- RBAC centralizado e nos serviços;
+- senha mascarada;
+- validação de flags;
+- validação de datas;
+- autenticação e sessão;
+- testes dos quatro papéis;
+- fluxo integrado CLI → serviços → persistência.
+
+Não foram identificados bloqueios funcionais na validação final.

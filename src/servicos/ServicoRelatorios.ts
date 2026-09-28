@@ -2,18 +2,22 @@ import { StatusRastreamento } from "../models/enums/StatusRastreamento";
 import { Equipamento } from "../models/Equipamento";
 import { ServicoEquipamentos } from "./ServicoEquipamentos";
 import { ServicoLote } from "./ServicoLote";
+import { ServicoAutorizacao } from "./ServicoAutorizacao";
 
 export class ServicoRelatorios {
   constructor(
     private readonly servicoLote: ServicoLote,
-    private readonly servicoEquipamentos: ServicoEquipamentos
+    private readonly servicoEquipamentos: ServicoEquipamentos,
+    private readonly autorizacao: ServicoAutorizacao
   ) {}
 
   gerarRelatorioPorOrganizacao(
     organizacaoId: string,
-    periodo: { inicio: Date; fim: Date }
+    periodo: { inicio: Date; fim: Date },
+    usuarioResponsavel: string
   ): string {
-    const lotes = this.servicoLote.consultarLotePorPeriodo(
+    this.autorizacao.exigirPermissao(usuarioResponsavel, "relatorio organizacao");
+    const lotes = this.servicoLote.listarLotesPorPeriodo(
       periodo.inicio,
       periodo.fim
     ).filter((lote) => lote.organizacaoId === organizacaoId);
@@ -33,8 +37,9 @@ export class ServicoRelatorios {
     ].join("\n");
   }
 
-  gerarRelatorioPorStatus(status: StatusRastreamento): string {
-    const equipamentos = this.servicoEquipamentos.listarEquipamentos();
+  gerarRelatorioPorStatus(status: StatusRastreamento, usuarioResponsavel: string): string {
+    this.autorizacao.exigirPermissao(usuarioResponsavel, "relatorio status");
+    const equipamentos = this.servicoEquipamentos.listarEquipamentos(usuarioResponsavel);
     const filtrados = equipamentos.filter(
       (equipamento) => equipamento.statusRastreamento === status
     );
@@ -46,8 +51,9 @@ export class ServicoRelatorios {
     ].join("\n");
   }
 
-  gerarRelatorioFinanceiro(periodo: { inicio: Date; fim: Date }): string {
-    const equipamentos = this.servicoEquipamentos.listarEquipamentos();
+  gerarRelatorioFinanceiro(periodo: { inicio: Date; fim: Date }, usuarioResponsavel: string): string {
+    this.autorizacao.exigirPermissao(usuarioResponsavel, "relatorio financeiro");
+    const equipamentos = this.servicoEquipamentos.listarEquipamentos(usuarioResponsavel);
     const filtrados = equipamentos.filter((equipamento) => {
       const movimentacoes = equipamento.historicoMovimentacao;
       const ultima = movimentacoes[movimentacoes.length - 1];

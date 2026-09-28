@@ -1,43 +1,277 @@
 # GreenCode — Documentação da Arquitetura de Segurança
 
-> Este documento explica e justifica as decisões de segurança do `greencode` (AV1): algoritmo de criptografia, esquema de hash de senhas e política de expiração de sessão, conforme pedido no enunciado.
+> Este documento registra as decisões de segurança implementadas no `greencode` e as validações realizadas na auditoria final.
 
 ## 1. Criptografia de dados em repouso
 
-Escolhi **AES-256 em modo GCM** (`aes-256-gcm`), implementado em `CriptografiaArquivo`.
+O projeto utiliza **AES-256 em modo GCM** (`aes-256-gcm`), implementado em `CriptografiaArquivo`.
 
-AES-256 porque é o algoritmo simétrico que o enunciado pede, e é o padrão de mercado pra criptografia de dados em repouso, com chave de 256 bits. A parte mais interessante é o modo GCM: diferente de algo como CBC, o GCM é autenticado — além de cifrar, ele gera uma tag de autenticação (`getAuthTag()`) que garante integridade. Ou seja, se alguém adulterar um `.enc` na mão (por exemplo, tentando editar um saldo ou status direto no arquivo), o `decifrar()` percebe que a tag não bate e lança erro, em vez de aceitar um dado corrompido ou forjado sem questionar. Isso cobre confidencialidade (que é o que o enunciado pede) e de quebra também integridade, que não é exigida explicitamente mas é meio óbvio que qualquer sistema com dados sensíveis deveria ter.
+O AES-256 atende ao requisito de criptografia simétrica. O modo GCM também fornece autenticação do ciphertext por meio de uma tag, permitindo detectar adulterações no conteúdo cifrado.
 
-Isso é aplicado em todos os arquivos de persistência: `credenciais.enc`, `organizacoes.enc`, lotes, equipamentos, movimentações e o próprio `journal.transacoes`.
+Isso se aplica aos arquivos de persistência utilizados pelo sistema, incluindo credenciais, organizações, lotes, equipamentos, movimentações e journal.
 
-Sobre a chave: a chave mestra (256 bits) é gerada uma única vez no provisionamento inicial (`ServicoAutenticacao.provisionarInicial`) e fica guardada em `config.mestre.json`. Ela nunca vai parar nos arquivos de dados — cada arquivo cifrado carrega só o IV e a tag de autenticação, que são necessários pra decifrar mas não servem de nada sem a chave mestra.
+### Chave mestra
+
+A chave de 256 bits é gerada no provisionamento inicial por `ServicoAutenticacao.provisionarInicial` e armazenada em `data/config.mestre.json`.
+
+Os arquivos `.enc` não armazenam a chave mestra. O conteúdo cifrado contém os dados necessários para decifração e validação de integridade, mas depende da chave para ser aberto.
+
+### Evidência
+
+Em 27/09/2026 foi realizado um teste de adulteração real:
+
+1. um arquivo cifrado válido foi criado;
+2. uma cópia foi feita;
+3. um nibble do ciphertext foi alterado manualmente;
+4. a cópia adulterada foi processada pelo fluxo `ServicoEquipamentos -> RepositorioArquivos -> CriptografiaArquivo`.
+
+O sistema rejeitou o arquivo adulterado por falha de decifração/validação de integridade, enquanto o arquivo válido continuou utilizável.
+
+---
 
 ## 2. Hash de senhas
 
-Usei **SHA-256 com salt por credencial**, em `Credencial`.
+As senhas não são armazenadas em texto puro.
 
-Cada `Credencial` gera um salt aleatório de 16 bytes na hora da criação, guardado junto com o hash mas separado dele. A senha nunca fica salva em texto puro, nem dá pra "recuperar" a partir do hash — a verificação (`verificarSenha`) refaz o processo (senha + salt → SHA-256) e compara os hashes, nunca as senhas em si.
+`Credencial` utiliza:
 
-O salt é importante porque SHA-256 puro, sem ele, é vulnerável a rainbow table (tabelas pré-computadas de hashes de senhas comuns). Com um salt único por usuário, dois usuários com a mesma senha nunca vão gerar o mesmo hash, e um atacante teria que quebrar credencial por credencial em vez de atacar o sistema inteiro de uma vez.
+- **SHA-256**;
+- salt aleatório de 16 bytes por credencial.
 
-## 3. Controle de sessão
+A verificação refaz o hash da senha informada usando o salt armazenado e compara o resultado.
 
-Todo login bem-sucedido cria uma `Sessao`, com token aleatório de 24 bytes e validade de 30 minutos, como pedido no enunciado.
+A alteração de senha cria um novo hash/salt; a senha anterior não é recuperada.
 
-A expiração é checada a cada comando (`ServicoAutenticacao.validarToken`, chamado dentro de `CLIInterface.processarComando`), não só no login — isso é o que faz a regra ser "expira após 30 min de inatividade" e não "30 min a partir do login". Quando expira, a sessão é invalidada automaticamente (tipo um logout interno) e o usuário precisa logar de novo.
+---
 
-## 4. Controle de acesso por papel (RBAC)
+## 3. Entrada de senha na CLI
 
-Os quatro papéis (`PapelUsuario`) têm as permissões mapeadas em `COMANDOS_POR_PAPEL`, dentro de `CLIInterface.ts` — usado tanto pra montar o menu quanto pra validar cada comando antes de executar.
+As senhas são solicitadas de forma interativa e mascaradas quando a entrada é um terminal (`TTY`).
 
-Um comando que não está na lista do papel atual é rejeitado com mensagem de erro categorizada, mesmo que o usuário conheça a sintaxe exata. A restrição acontece no sistema, não depende do menu simplesmente esconder a opção.
+Isso ocorre em:
 
-## 5. Persistência atômica e recuperação de falhas
+- provisionamento inicial;
+- login;
+- `usuario criar`;
+- `senha alterar`.
 
-- **Escrita atômica** (`RepositorioArquivos`): toda gravação passa primeiro por um arquivo temporário (`.tmp`); só depois que a escrita termina o arquivo definitivo é substituído (`rename`). Se algo interromper no meio (queda de energia, processo morto), o arquivo definitivo nunca fica pela metade.
-- **Journaling** (`JournalTransacao`): cada escrita é registrada antes de ser aplicada, com o estado anterior (`dadosAntes`) e o novo (`dadosDepois`). Isso dá pra reverter uma transação problemática (`reverter()`), voltando pro estado anterior.
-- **Retenção e rotação**: o journal fica guardado por no mínimo 180 dias e roda automaticamente quando passa de 10 MB, como pedido.
+As senhas não devem ser fornecidas por flags. A CLI rejeita tentativas como:
 
-## 6. Prevenção de acesso indevido a arquivos
+```text
+usuario criar --usuario teste --papel AUDITOR --senha 123
+```
 
-`RepositorioArquivos.obterCaminho()` sanitiza qualquer nome de arquivo com `path.basename()` antes de montar o caminho final em disco. Isso evita que um nome malformado (com `../`, por exemplo) escape do diretório de dados configurado. Não é algo que o enunciado pede explicitamente, mas é boa prática básica de manipulação de arquivo e não custava nada implementar.
+e:
+
+```text
+senha alterar --antiga 123 --nova 456
+```
+
+### Correção de segurança/robustez da entrada mascarada
+
+Durante a auditoria foi identificado um problema de interação entre `readline` e a leitura mascarada: o caractere digitado para a senha podia chegar também ao parser normal da CLI.
+
+A correção ficou restrita a `CLIInterface`:
+
+- estado `lendoSenha` impede o processamento normal de linhas durante a leitura;
+- listeners de `keypress` do `readline` são temporariamente removidos;
+- apenas o listener da senha recebe as teclas durante o modo raw;
+- os listeners são restaurados ao final;
+- o modo raw anterior é restaurado;
+- o `readline` volta ao processamento normal depois da senha.
+
+O problema foi reproduzido e corrigido. Na validação final, senhas `123` e `Abc123!@#` foram aceitas sem serem interpretadas como comandos, e não ocorreu `ERR_USE_AFTER_CLOSE`.
+
+---
+
+## 4. Autenticação e sessão
+
+Todo login bem-sucedido cria uma `Sessao` com:
+
+- token aleatório de 32 bytes;
+- validade de 30 minutos de inatividade.
+
+A expiração é verificada a cada comando por `ServicoAutenticacao.validarToken`.
+
+Quando a sessão expira, ela é invalidada e a CLI encerra a sessão.
+
+### Proteção contra enumeração de contas
+
+Falhas de login para:
+
+- usuário inexistente;
+- usuário existente com senha incorreta;
+
+retornam a mesma mensagem:
+
+```text
+Falha no login: Usuário ou senha inválidos.
+```
+
+---
+
+## 5. Controle de acesso por papel (RBAC)
+
+Os quatro papéis são:
+
+```text
+ADMINISTRADOR
+OPERADOR_CADASTRO
+GESTOR_ALMOXARIFADO
+AUDITOR
+```
+
+A matriz de permissões está centralizada em:
+
+```text
+src/servicos/ServicoAutorizacao.ts
+```
+
+### Matriz
+
+| Papel | Permissões de negócio |
+|---|---|
+| `ADMINISTRADOR` | todas as operações de usuário, organização, lote, equipamento e relatórios previstas na matriz |
+| `OPERADOR_CADASTRO` | organização e contratos |
+| `GESTOR_ALMOXARIFADO` | lotes e operações de equipamentos, exceto rastreamento |
+| `AUDITOR` | rastreamento e relatórios, sem operações de escrita |
+
+Todos os usuários autenticados também possuem:
+
+```text
+ajuda
+logout
+senha alterar
+```
+
+### Dupla camada de autorização
+
+A autorização não depende apenas do menu da CLI.
+
+1. `CLIInterface` verifica o comando antes do despacho.
+2. Os serviços de negócio recebem `ServicoAutorizacao` e verificam a autorização antes de executar as operações correspondentes.
+
+Assim, um usuário não pode contornar o RBAC apenas digitando manualmente um comando que não aparece em `ajuda`.
+
+Na auditoria final, um `AUDITOR` tentando executar `org criar` diretamente pelo serviço também foi rejeitado.
+
+---
+
+## 6. Validação de entradas na CLI
+
+A CLI passou a tratar explicitamente:
+
+- flags obrigatórias ausentes;
+- flags obrigatórias sem valor;
+- valores inválidos de enums;
+- datas com formato inválido;
+- datas de calendário inválidas.
+
+### Datas
+
+O formato aceito é:
+
+```text
+YYYY-MM-DD
+```
+
+Exemplos:
+
+```text
+2026-09-27
+```
+
+é aceito.
+
+```text
+27/09/2026
+2026-99-99
+data-invalida
+```
+
+são rejeitados.
+
+### Papéis
+
+`ServicoAutenticacao.criarUsuario` também valida o `PapelUsuario` antes da persistência.
+
+---
+
+## 7. Persistência atômica e recuperação de falhas
+
+### Escrita atômica
+
+`RepositorioArquivos` escreve primeiro em um arquivo temporário (`.tmp`) e só depois substitui o arquivo definitivo por `rename`.
+
+Isso evita deixar o arquivo definitivo parcialmente gravado em uma interrupção durante a escrita.
+
+### Journal
+
+`JournalTransacao` registra a operação, entidade, dados anteriores, dados posteriores e usuário responsável.
+
+`reverter()` utiliza o registro para restaurar ou remover a entidade conforme a operação.
+
+### Retenção e rotação
+
+O journal:
+
+- possui retenção mínima de 180 dias;
+- rotaciona ao ultrapassar 10 MB;
+- registra uma mensagem informativa no momento da rotação.
+
+Mensagem produzida:
+
+```text
+[INFO] Journal atingiu o limite. Rotacionando arquivo...
+```
+
+### Evidência
+
+O cenário foi executado com transações de grande porte. A rotação ocorreu e o novo arquivo ativo foi criado corretamente. O teste automatizado também reproduz esse cenário em diretório temporário.
+
+---
+
+## 8. Proteção do caminho dos arquivos
+
+`RepositorioArquivos.obterCaminho()` utiliza `path.basename()` para sanitizar nomes de arquivos antes de montar caminhos dentro do diretório de dados.
+
+Isso reduz o risco de traversal por nomes como `../arquivo`.
+
+---
+
+## 9. Provisionamento inicial
+
+Quando `data/config.mestre.json` não existe:
+
+1. o sistema entra em modo de provisionamento;
+2. solicita a senha do administrador;
+3. gera a chave AES-256;
+4. cria a credencial `admin`;
+5. cria as dependências de persistência;
+6. segue para o login.
+
+Esse fluxo foi validado manualmente no Windows durante a auditoria final.
+
+---
+
+## 10. Evidências de segurança na validação final — 27/09/2026
+
+| Cenário | Resultado |
+|---|---|
+| Login correto | PASSOU |
+| Senha incorreta | PASSOU |
+| Usuário inexistente | PASSOU |
+| Senha mascarada | PASSOU |
+| Senha com símbolos | PASSOU |
+| Alteração de senha | PASSOU |
+| Logout | PASSOU |
+| Sessão expirada | PASSOU |
+| Comando fora do papel | PASSOU — rejeitado |
+| RBAC no serviço | PASSOU — rejeitado |
+| Papel inválido | PASSOU — rejeitado |
+| Flags ausentes/vazias | PASSOU |
+| Datas inválidas | PASSOU |
+| Arquivo `.enc` adulterado | PASSOU — rejeitado |
+| Journal > 10 MB | PASSOU — rotação observada |
+
+Nenhuma alteração de hash, salt, criptografia ou regra de negócio foi necessária para corrigir o problema de entrada mascarada de senha.

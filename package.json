@@ -8,7 +8,9 @@
     "test:test1": "tsx src/tests/test1.ts",
     "test:test2": "tsx src/tests/test2.ts",
     "test:test3": "tsx src/tests/test3.ts",
-    "test:test4": "tsx src/tests/test4.ts"
+    "test:test4": "tsx src/tests/test4.ts",
+    "start": "tsx src/index.ts",
+    "test": "npm run test:test1 && npm run test:test2 && npm run test:test3 && npm run test:test4"
   },
   "author": "",
   "license": "ISC",

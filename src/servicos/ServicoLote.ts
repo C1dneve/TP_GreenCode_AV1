@@ -5,6 +5,7 @@ import { StatusRastreamento } from "../models/enums/StatusRastreamento";
 import { ValidadorDataEntrada } from "../models/ValidadorDataEntrada";
 import { JournalTransacao } from "../persistencia/JournalTransacao";
 import { RepositorioArquivos } from "../persistencia/RepositorioArquivos";
+import { ServicoAutorizacao } from "./ServicoAutorizacao";
 
 interface DadosLote {
   id: string;
@@ -24,7 +25,8 @@ export class ServicoLote {
   constructor(
     repositorio: RepositorioArquivos,
     diretorioBase: string,
-    chave: string
+    chave: string,
+    private readonly autorizacao: ServicoAutorizacao
   ) {
     this.repositorio = repositorio;
     this.validadorDataEntrada = new ValidadorDataEntrada();
@@ -32,7 +34,8 @@ export class ServicoLote {
     this.chave = chave;
   }
 
-  criarLote(dados: DadosLote, usuarioResponsavel = "sistema"): Lote {
+  criarLote(dados: DadosLote, usuarioResponsavel: string): Lote {
+    this.autorizacao.exigirPermissao(usuarioResponsavel, "lote criar");
     const dataEntrada = dados.dataEntrada
       ? new Date(dados.dataEntrada)
       : new Date();
@@ -63,8 +66,9 @@ export class ServicoLote {
   adicionarEquipamentoLote(
     loteId: string,
     equipamento: Equipamento,
-    usuarioResponsavel = "sistema"
+    usuarioResponsavel: string
   ): void {
+    this.autorizacao.exigirPermissao(usuarioResponsavel, "equip cadastrar");
     const lote = this.carregarLote(loteId);
     if (this.repositorio.carregarEntidade("equipamentos.enc", equipamento.id)) {
       throw new Error("Já existe um equipamento com este identificador.");
@@ -96,7 +100,8 @@ export class ServicoLote {
 
   }
 
-  processarTriagem(loteId: string, usuarioResponsavel = "sistema"): void {
+  processarTriagem(loteId: string, usuarioResponsavel: string): void {
+    this.autorizacao.exigirPermissao(usuarioResponsavel, "lote triagem");
     const lote = this.carregarLote(loteId);
     const antesLote = lote.paraDados();
 
@@ -147,7 +152,13 @@ export class ServicoLote {
     }
   }
 
-  consultarLotePorPeriodo(dataInicio: Date, dataFim: Date): Lote[] {
+  consultarLotePorPeriodo(dataInicio: Date, dataFim: Date, usuarioResponsavel: string): Lote[] {
+    this.autorizacao.exigirPermissao(usuarioResponsavel, "lote consultar-periodo");
+    return this.listarLotesPorPeriodo(dataInicio, dataFim);
+  }
+
+  /** Leitura interna usada por relatórios após a autorização do próprio relatório. */
+  listarLotesPorPeriodo(dataInicio: Date, dataFim: Date): Lote[] {
     if (dataInicio > dataFim) {
       throw new Error("A data inicial não pode ser posterior à data final.");
     }

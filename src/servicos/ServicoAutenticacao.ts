@@ -103,6 +103,21 @@ export class ServicoAutenticacao {
     return true;
   }
 
+  obterPapelUsuario(usuario: string): PapelUsuario {
+    this.exigirSistemaProvisionado();
+    this.carregarCredenciais();
+
+    const credencial = this.credenciais.find(
+      (item) => item.obterUsuario() === usuario
+    );
+
+    if (!credencial) {
+      throw new Error("Usuário não encontrado.");
+    }
+
+    return credencial.obterPapel();
+  }
+
   alterarSenha(
     usuario: string,
     senhaAntiga: string,
@@ -143,8 +158,16 @@ export class ServicoAutenticacao {
     this.exigirSistemaProvisionado();
     this.carregarCredenciais();
 
+    if (this.obterPapelUsuario(responsavel) !== PapelUsuario.ADMINISTRADOR) {
+      throw new Error("Somente o papel ADMINISTRADOR pode criar usuários.");
+    }
+
     if (this.credenciais.some((item) => item.obterUsuario() === usuario)) {
       throw new Error("O usuário informado já está cadastrado.");
+    }
+
+    if (!Object.values(PapelUsuario).includes(papel)) {
+      throw new Error("Papel de usuário inválido.");
     }
 
     const credencial = new Credencial(usuario, senha, papel);

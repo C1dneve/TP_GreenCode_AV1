@@ -4,6 +4,7 @@ import { TipoEquipamento } from "../models/enums/TipoEquipamento";
 import { StatusRastreamento } from "../models/enums/StatusRastreamento";
 import { JournalTransacao } from "../persistencia/JournalTransacao";
 import { RepositorioArquivos } from "../persistencia/RepositorioArquivos";
+import { ServicoAutorizacao } from "./ServicoAutorizacao";
 
 export interface HistoricoCompleto {
   equipamento: Equipamento;
@@ -27,14 +28,16 @@ export class ServicoEquipamentos {
   constructor(
     repositorio: RepositorioArquivos,
     diretorioBase: string,
-    chave: string
+    chave: string,
+    private readonly autorizacao: ServicoAutorizacao
   ) {
     this.repositorio = repositorio;
     this.diretorioBase = diretorioBase;
     this.chave = chave;
   }
 
-  rastrearEquipamento(id: string): HistoricoCompleto {
+  rastrearEquipamento(id: string, usuarioResponsavel: string): HistoricoCompleto {
+    this.autorizacao.exigirPermissao(usuarioResponsavel, "equip rastrear");
     const equipamento = this.carregarEquipamento(id);
     return {
       equipamento,
@@ -46,8 +49,9 @@ export class ServicoEquipamentos {
     id: string,
     novoEstado: EstadoFisico,
     justificativa = "",
-    usuarioResponsavel = "sistema"
+    usuarioResponsavel: string
   ): void {
+    this.autorizacao.exigirPermissao(usuarioResponsavel, "equip atualizar-estado");
     const equipamento = this.carregarEquipamento(id);
     const indiceAtual = this.ordemEstado.indexOf(equipamento.estadoFisico);
     const indiceNovo = this.ordemEstado.indexOf(novoEstado);
@@ -81,7 +85,8 @@ export class ServicoEquipamentos {
     void depois;
   }
 
-  gerarCodigoBarras(tipo: TipoEquipamento, sequencia: number): string {
+  gerarCodigoBarras(tipo: TipoEquipamento, sequencia: number, usuarioResponsavel: string): string {
+    this.autorizacao.exigirPermissao(usuarioResponsavel, "equip codigo-barras");
     if (!Number.isInteger(sequencia) || sequencia < 1) {
       throw new Error("A sequência do código de barras deve ser um inteiro positivo.");
     }
@@ -96,6 +101,7 @@ export class ServicoEquipamentos {
     responsavel: string,
     observacao = ""
   ): void {
+    this.autorizacao.exigirPermissao(responsavel, "equip mover");
     const equipamento = this.carregarEquipamento(id);
     const antes = equipamento.paraDados();
 
@@ -106,7 +112,8 @@ export class ServicoEquipamentos {
     this.repositorio.salvarEntidade("equipamentos.enc", depois);
   }
 
-  listarEquipamentos(): Equipamento[] {
+  listarEquipamentos(usuarioResponsavel: string): Equipamento[] {
+    this.autorizacao.exigirPermissao(usuarioResponsavel, "relatorio status");
     return this.repositorio
       .listarEntidades("equipamentos.enc")
       .map((item) => Equipamento.deDados(item));
