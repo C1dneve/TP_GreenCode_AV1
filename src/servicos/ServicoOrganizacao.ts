@@ -1,26 +1,12 @@
 import * as path from "path";
-import { Contrato } from "../models/Contrato";
+import { OrganizacaoFactory } from "../factories/OrganizacaoFactory";
 import { Organizacao } from "../models/Organizacao";
 import { ValidadorCNPJ } from "../models/ValidadorCNPJ";
 import { JournalTransacao } from "../persistencia/JournalTransacao";
 import { RepositorioArquivos } from "../persistencia/RepositorioArquivos";
+import { ServicoAutorizacao } from "./ServicoAutorizacao";
 
-interface DadosOrganizacao {
-  id: string;
-  razaoSocial: string;
-  cnpj: string;
-  inscricaoEstadual: string;
-  enderecoCompleto: string;
-  telefone: string;
-  email: string;
-  contrato?: {
-    id: string;
-    dataVencimento: Date;
-    valorMensal: number;
-    clausulas?: string[];
-    renovacaoAutomatica?: boolean;
-  };
-}
+type DadosOrganizacao = import("../factories/OrganizacaoFactory").DadosOrganizacaoFactory;
 
 export class ServicoOrganizacao {
   private repositorio: RepositorioArquivos;
@@ -31,6 +17,7 @@ export class ServicoOrganizacao {
     repositorio: RepositorioArquivos,
     diretorioBase: string = path.dirname(repositorio.obterCaminho("organizacoes.enc")),
     chave: string = "",
+    private readonly autorizacao: ServicoAutorizacao
   ) {
     this.repositorio = repositorio;
     this.validadorCNPJ = new ValidadorCNPJ();
@@ -51,7 +38,8 @@ export class ServicoOrganizacao {
     };
   }
 
-  cadastrarOrganizacao(dados: DadosOrganizacao, usuarioResponsavel = "sistema"): Organizacao {
+  cadastrarOrganizacao(dados: DadosOrganizacao, usuarioResponsavel: string): Organizacao {
+    this.autorizacao.exigirPermissao(usuarioResponsavel, "org criar");
     if (!this.validadorCNPJ.validar(dados.cnpj)) {
       throw new Error(this.validadorCNPJ.obterMensagemErro());
     }
@@ -63,26 +51,10 @@ export class ServicoOrganizacao {
       throw new Error("Já existe uma organização cadastrada com este CNPJ.");
     }
 
-    const organizacao = new Organizacao(
-      dados.id,
-      dados.razaoSocial,
-      cnpjNormalizado,
-      dados.inscricaoEstadual,
-      dados.enderecoCompleto,
-      dados.telefone,
-      dados.email
-    );
-
-    if (dados.contrato) {
-      organizacao.contratoVigente = new Contrato(
-        dados.contrato.id,
-        organizacao.id,
-        new Date(dados.contrato.dataVencimento),
-        dados.contrato.valorMensal,
-        dados.contrato.clausulas ?? [],
-        dados.contrato.renovacaoAutomatica ?? false
-      );
-    }
+    const organizacao = OrganizacaoFactory.criar({
+      ...dados,
+      cnpj: cnpjNormalizado,
+    });
 
     const entidade = organizacao.paraDados();
     this.journal("CRIAR", "organizacoes.enc", null, entidade, usuarioResponsavel);
@@ -99,7 +71,8 @@ export class ServicoOrganizacao {
     return Organizacao.deDados(dados);
   }
 
-  listarOrganizacoesAtivas(): Organizacao[] {
+  listarOrganizacoesAtivas(usuarioResponsavel: string): Organizacao[] {
+    this.autorizacao.exigirPermissao(usuarioResponsavel, "org listar");
     return this.repositorio
       .listarEntidades("organizacoes.enc")
       .filter((item) => item.ativo)
@@ -109,8 +82,9 @@ export class ServicoOrganizacao {
   renovarContrato(
     organizacaoId: string,
     novoVencimento: Date,
-    usuarioResponsavel = "sistema"
+    usuarioResponsavel: string
   ): void {
+    this.autorizacao.exigirPermissao(usuarioResponsavel, "org renovar-contrato");
     const organizacao = this.buscarOrganizacao(organizacaoId);
     if (!organizacao.contratoVigente) {
       throw new Error("A organização não possui contrato vigente para renovar.");

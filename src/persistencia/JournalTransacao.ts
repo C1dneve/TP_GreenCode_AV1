@@ -133,6 +133,7 @@ export class JournalTransacao {
     );
 
     fs.renameSync(this.arquivoJournal, arquivoRotacionado);
+    console.log("[INFO] Journal atingiu o limite. Rotacionando arquivo...");
   }
 
   private removerJournalsAntigos(): void {

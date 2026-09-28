@@ -14,6 +14,7 @@ import { PapelUsuario } from "../models/enums/PapelUsuario";
 import { TipoEquipamento } from "../models/enums/TipoEquipamento";
 import { EstadoFisico } from "../models/enums/EstadoFisico";
 import { StatusRastreamento } from "../models/enums/StatusRastreamento";
+import { ServicoAutorizacao } from "../servicos/ServicoAutorizacao";
 import { Equipamento } from "../models/Equipamento";
 
 const diretorioTeste = fs.mkdtempSync(
@@ -59,10 +60,55 @@ try {
   assertEqual(repositorio.carregarEntidade("teste.enc", "2"), undefined);
   console.log("JournalTransacao ok👍");
 
+  console.log("Teste de adulteração de arquivo cifrado ...");
+  repositorio.salvarEntidade("adulterado.enc", { id: "1", nome: "Integro" });
+  const caminhoAdulterado = repositorio.obterCaminho("adulterado.enc");
+  const conteudoIntegro = fs.readFileSync(caminhoAdulterado, "utf8");
+  const partesCifradas = conteudoIntegro.split(":");
+  const ultimoNible = partesCifradas[2].slice(-1);
+  partesCifradas[2] = partesCifradas[2].slice(0, -1) + (ultimoNible === "0" ? "1" : "0");
+  fs.writeFileSync(caminhoAdulterado, partesCifradas.join(":"), "utf8");
+  let adulteracaoRejeitada = false;
+  try {
+    repositorio.listarEntidades("adulterado.enc");
+  } catch {
+    adulteracaoRejeitada = true;
+  }
+  assertEqual(adulteracaoRejeitada, true);
+  fs.writeFileSync(caminhoAdulterado, conteudoIntegro, "utf8");
+  console.log("Adulteração de .enc rejeitada ok👍");
+
+  console.log("Teste de rotação do journal acima de 10 MB ...");
+  const diretorioJournal = fs.mkdtempSync(path.join(os.tmpdir(), "greencode-journal-"));
+  const repoJournal = new RepositorioArquivos(diretorioJournal, chave);
+  const payloadGrande = "x".repeat(220_000);
+  for (let indice = 0; indice < 60; indice++) {
+    const transacaoGrande = new JournalTransacao(
+      `rotacao-${indice}`,
+      "CRIAR",
+      "teste.enc",
+      null,
+      { id: `rotacao-${indice}`, payload: payloadGrande },
+      "cid",
+      diretorioJournal,
+      chave,
+      repoJournal
+    );
+    transacaoGrande.registrar();
+  }
+  const arquivosRotacionados = fs
+    .readdirSync(diretorioJournal)
+    .filter((arquivo) => /^journal\.transacoes\.\d/.test(arquivo));
+  assertEqual(arquivosRotacionados.length > 0, true);
+  assertEqual(fs.statSync(path.join(diretorioJournal, "journal.transacoes")).size < 10 * 1024 * 1024, true);
+  fs.rmSync(diretorioJournal, { recursive: true, force: true });
+  console.log("Rotação do journal ok👍");
+
   console.log("Teste do ServicoAutenticacao ...");
   const autenticacao = new ServicoAutenticacao(diretorioTeste);
   autenticacao.provisionarInicial("senha-admin", "admin");
   const sessao = autenticacao.login("admin", "senha-admin");
+  const autorizacao = new ServicoAutorizacao(autenticacao);
   assertEqual(autenticacao.validarToken(sessao.obterToken()), true);
   assertEqual(
     autenticacao.criarUsuario(
@@ -73,6 +119,18 @@ try {
     ).obterPapel(),
     PapelUsuario.AUDITOR
   );
+  let papelInvalidoRejeitado = false;
+  try {
+    autenticacao.criarUsuario(
+      "usuario-invalido",
+      "senha",
+      "PAPEL_INEXISTENTE" as PapelUsuario,
+      "admin"
+    );
+  } catch {
+    papelInvalidoRejeitado = true;
+  }
+  assertEqual(papelInvalidoRejeitado, true);
   assertEqual(
     autenticacao.alterarSenha("auditor", "senha-auditor", "nova-senha"),
     true
@@ -92,7 +150,8 @@ try {
   const servicoOrganizacao = new ServicoOrganizacao(
     repoDominio,
     diretorioDominio,
-    chaveDominio
+    chaveDominio,
+    autorizacao
   );
   servicoOrganizacao.cadastrarOrganizacao(
     {
@@ -111,12 +170,14 @@ try {
     },
     "admin"
   );
-  assertEqual(servicoOrganizacao.listarOrganizacoesAtivas().length, 1);
+  assertEqual(servicoOrganizacao.listarOrganizacoesAtivas("admin").length, 1);
+  assertEqual(servicoOrganizacao.buscarOrganizacao("org-1").contratoVigente?.id, "ctr-1");
 
   const servicoLote = new ServicoLote(
     repoDominio,
     diretorioDominio,
-    chaveDominio
+    chaveDominio,
+    autorizacao
   );
   const lote = servicoLote.criarLote(
     {
@@ -131,11 +192,12 @@ try {
   const servicoEquipamentos = new ServicoEquipamentos(
     repoDominio,
     diretorioDominio,
-    chaveDominio
+    chaveDominio,
+    autorizacao
   );
   const equipamento = new Equipamento(
     "equip-1",
-    servicoEquipamentos.gerarCodigoBarras(TipoEquipamento.NOTEBOOK, 1),
+    servicoEquipamentos.gerarCodigoBarras(TipoEquipamento.NOTEBOOK, 1, "admin"),
     TipoEquipamento.NOTEBOOK,
     "Dell",
     "Latitude",
@@ -158,15 +220,17 @@ try {
     "admin"
   );
 
-  const rastreio = servicoEquipamentos.rastrearEquipamento("equip-1");
+  const rastreio = servicoEquipamentos.rastrearEquipamento("equip-1", "admin");
   assertEqual(rastreio.movimentacoes.length > 0, true);
 
   const servicoRelatorios = new ServicoRelatorios(
     servicoLote,
-    servicoEquipamentos
+    servicoEquipamentos,
+    autorizacao
   );
   const relatorio = servicoRelatorios.gerarRelatorioPorStatus(
-    StatusRastreamento.AGUARDANDO_DESMONTE
+    StatusRastreamento.AGUARDANDO_DESMONTE,
+    "admin"
   );
   assertEqual(relatorio.includes("Quantidade de equipamentos: 1"), true);
 
