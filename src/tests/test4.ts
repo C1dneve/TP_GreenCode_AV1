@@ -1,7 +1,8 @@
+import { ARQUIVOS } from "../persistencia/ArquivosPersistencia";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import { assertEqual } from "./testUtils";
+import { assertEqual, criarAmbiente, logarComo } from "./testUtils";
 import { interpretarComando, COMANDOS_POR_PAPEL } from "../cli/CLIInterface";
 import { PapelUsuario } from "../models/enums/PapelUsuario";
 import { ServicoAutenticacao } from "../servicos/ServicoAutenticacao";
@@ -73,10 +74,10 @@ try {
 
   const equipamento = autenticacao
     .obterRepositorio()!
-    .carregarEntidade("equipamentos.enc", "equip-e2e");
+    .carregarEntidade(ARQUIVOS.EQUIPAMENTOS, "equip-e2e");
   const organizacao = autenticacao
     .obterRepositorio()!
-    .carregarEntidade("organizacoes.enc", "org-e2e");
+    .carregarEntidade(ARQUIVOS.ORGANIZACOES, "org-e2e");
 
   assertEqual(organizacao?.contratoVigente?.id, "ctr-e2e");
   assertEqual(equipamento?.statusRastreamento, "AGUARDANDO_DESMONTE");
@@ -100,11 +101,11 @@ async function executarEObterSaida(cli: CLIInterface, entrada: string): Promise<
 
 async function testeFinalRBAC(): Promise<void> {
   console.log("\nSegunda auditoria: RBAC, flags, datas, sessão e autenticação ...");
-  const diretorioAuditoria = fs.mkdtempSync(path.join(os.tmpdir(), "greencode-final-"));
+  const ambiente = criarAmbiente("greencode-final-", "senha-admin-final");
+  const diretorioAuditoria = ambiente.diretorio;
 
   try {
-    const auth = new ServicoAutenticacao(diretorioAuditoria);
-    auth.provisionarInicial("senha-admin-final", "admin");
+    const auth = ambiente.autenticacao;
 
     const papeis = [
       PapelUsuario.ADMINISTRADOR,
@@ -112,10 +113,6 @@ async function testeFinalRBAC(): Promise<void> {
       PapelUsuario.GESTOR_ALMOXARIFADO,
       PapelUsuario.AUDITOR,
     ];
-
-    for (const papel of papeis.slice(1)) {
-      auth.criarUsuario(`usuario-${papel}`, `senha-${papel}`, papel, "admin");
-    }
 
     const casos = [
       {
@@ -168,7 +165,7 @@ async function testeFinalRBAC(): Promise<void> {
       }
       assertEqual(usuarioInexistenteRejeitado, true, `Usuário inexistente deveria ser rejeitado para ${caso.papel}`);
 
-      const sessao = auth.login(usuario, senha);
+      const sessao = logarComo(auth, caso.papel, senha);
       assertEqual(auth.validarToken(sessao.obterToken()), true);
       auth.logout(sessao.obterToken());
       assertEqual(auth.validarToken(sessao.obterToken()), false);
@@ -182,7 +179,7 @@ async function testeFinalRBAC(): Promise<void> {
     const authAdmin = new ServicoAutenticacao(diretorioAuditoria);
     const cli = new CLIInterface(authAdmin);
     (cli as any).montarServicosDeNegocio();
-    (cli as any).sessaoAtual = authAdmin.login("admin", "senha-admin-final-nova");
+    (cli as any).sessaoAtual = logarComo(authAdmin, PapelUsuario.ADMINISTRADOR, "senha-admin-final-nova");
 
     const ajudaAdmin = await executarEObterSaida(cli, "ajuda");
     assertEqual(ajudaAdmin.includes("usuario criar"), true);
@@ -218,7 +215,7 @@ async function testeFinalRBAC(): Promise<void> {
         ? "senha-admin-final-nova"
         : `senha-${papel}-nova`;
 
-      (cli as any).sessaoAtual = authAdmin.login(usuario, senha);
+      (cli as any).sessaoAtual = logarComo(authAdmin, papel, senha);
       const permitido = await executarEObterSaida(cli, caso.permitido);
       assertEqual(
         permitido.includes(`[ERRO] Comando`),
@@ -268,7 +265,7 @@ async function testeFinalRBAC(): Promise<void> {
     }
     assertEqual(escritaDiretaBloqueada, true);
 
-    const sessaoExpiravel = authAdmin.login("admin", "senha-admin-final-nova");
+    const sessaoExpiravel = logarComo(authAdmin, PapelUsuario.ADMINISTRADOR, "senha-admin-final-nova");
     (sessaoExpiravel as any).expiracao = new Date(Date.now() - 1000);
     (cli as any).sessaoAtual = sessaoExpiravel;
     const expiracao = await executarEObterSaida(cli, "ajuda");
@@ -277,7 +274,7 @@ async function testeFinalRBAC(): Promise<void> {
 
     console.log("RBAC + autenticação + sessão + validação de entrada ok👍");
   } finally {
-    fs.rmSync(diretorioAuditoria, { recursive: true, force: true });
+    ambiente.limpar();
   }
 }
 

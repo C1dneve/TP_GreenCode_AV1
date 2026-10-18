@@ -31,14 +31,14 @@ export class OrganizacaoFactory {
     );
 
     if (dados.contrato) {
-      organizacao.contratoVigente = new Contrato(
+      organizacao.adicionarContrato(new Contrato(
         dados.contrato.id,
         organizacao.id,
         new Date(dados.contrato.dataVencimento),
         dados.contrato.valorMensal,
         dados.contrato.clausulas ?? [],
         dados.contrato.renovacaoAutomatica ?? false
-      );
+      ));
     }
 
     return organizacao;

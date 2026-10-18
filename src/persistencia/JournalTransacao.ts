@@ -1,8 +1,10 @@
+import { ARQUIVOS } from "./ArquivosPersistencia";
 import * as fs from "fs";
 import * as path from "path";
 import { CriptografiaArquivo } from "./CriptografiaArquivo";
 import { RepositorioArquivos } from "./RepositorioArquivos";
 
+import { logMensagemTerminal } from "../utils/CoresTerminal";
 export interface RegistroJournal {
   id: string;
   timestamp: string;
@@ -51,7 +53,7 @@ export class JournalTransacao {
     this.dadosDepois = dadosDepois;
     this.usuarioResponsavel = usuarioResponsavel;
     this.diretorioBase = diretorioBase;
-    this.arquivoJournal = path.join(diretorioBase, "journal.transacoes");
+    this.arquivoJournal = path.join(diretorioBase, ARQUIVOS.JOURNAL);
     this.chave = chave;
     this.repositorio = repositorio;
     this.criptografia = criptografia;
@@ -129,11 +131,11 @@ export class JournalTransacao {
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     const arquivoRotacionado = path.join(
       this.diretorioBase,
-      `journal.transacoes.${timestamp}`
+      `${ARQUIVOS.JOURNAL_ROTACIONADO_PREFIXO}${timestamp}`
     );
 
     fs.renameSync(this.arquivoJournal, arquivoRotacionado);
-    console.log("[INFO] Journal atingiu o limite. Rotacionando arquivo...");
+    logMensagemTerminal("info", "Journal atingiu o limite. Rotacionando arquivo...");
   }
 
   private removerJournalsAntigos(): void {
@@ -142,7 +144,7 @@ export class JournalTransacao {
     const arquivos = fs.readdirSync(this.diretorioBase);
 
     for (const arquivo of arquivos) {
-      if (!arquivo.startsWith("journal.transacoes")) {
+      if (!arquivo.startsWith(ARQUIVOS.JOURNAL_ROTACIONADO_PREFIXO)) {
         continue;
       }
 

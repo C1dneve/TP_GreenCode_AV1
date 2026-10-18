@@ -2,6 +2,7 @@ import { TipoEquipamento } from './enums/TipoEquipamento';
 import { EstadoFisico } from './enums/EstadoFisico';
 import { StatusRastreamento } from './enums/StatusRastreamento';
 import { Movimentacao } from './Movimentacao';
+import { serializarDados } from '../utils/SerializadorDados';
 
 export class Equipamento {
   id: string;
@@ -16,6 +17,8 @@ export class Equipamento {
   posicaoNoLote: number;
   statusRastreamento: StatusRastreamento;
   historicoMovimentacao: Movimentacao[];
+  ativo: boolean;
+  valorAquisicao: number;
 
   constructor(
     id: string,
@@ -25,7 +28,8 @@ export class Equipamento {
     modelo: string,
     anoFabricacao: number,
     estadoFisico: EstadoFisico,
-    pesoQuilogramas: number
+    pesoQuilogramas: number,
+    valorAquisicao: number = 0
   ) {
     this.id = id;
     this.codigoBarrasInterno = codigoBarrasInterno;
@@ -35,10 +39,15 @@ export class Equipamento {
     this.anoFabricacao = anoFabricacao;
     this.estadoFisico = estadoFisico;
     this.pesoQuilogramas = pesoQuilogramas;
+    if (!Number.isFinite(valorAquisicao) || valorAquisicao < 0) {
+      throw new Error("O valor de aquisição deve ser um número não negativo.");
+    }
     this.loteId = '';
     this.posicaoNoLote = -1;
     this.statusRastreamento = StatusRastreamento.AGUARDANDO_TRIAGEM;
     this.historicoMovimentacao = [];
+    this.ativo = true;
+    this.valorAquisicao = valorAquisicao;
   }
 
 
@@ -81,8 +90,8 @@ export class Equipamento {
     );
   }
 
-  calcularDepreciacao(): number {
-    const TAXA_DEPRECIACAO_ANUAL = 0.15;
+  calcularDepreciacao(taxaDepreciacaoAnual: number = 0.15): number {
+    const TAXA_DEPRECIACAO_ANUAL = taxaDepreciacaoAnual;
     const anoAtual = new Date().getFullYear();
     const idadeAnos = Math.max(0, anoAtual - this.anoFabricacao);
     const fatorRestante = Math.max(0, 1 - TAXA_DEPRECIACAO_ANUAL * idadeAnos);
@@ -98,12 +107,15 @@ export class Equipamento {
       String(dados.modelo),
       Number(dados.anoFabricacao),
       dados.estadoFisico as EstadoFisico,
-      Number(dados.pesoQuilogramas)
+      Number(dados.pesoQuilogramas),
+      Number(dados.valorAquisicao ?? 0)
     );
 
     equipamento.loteId = String(dados.loteId ?? '');
     equipamento.posicaoNoLote = Number(dados.posicaoNoLote ?? -1);
     equipamento.statusRastreamento = dados.statusRastreamento as StatusRastreamento;
+    equipamento.ativo = dados.ativo === undefined ? true : Boolean(dados.ativo);
+    equipamento.valorAquisicao = Number(dados.valorAquisicao ?? 0);
     equipamento.historicoMovimentacao = Array.isArray(dados.historicoMovimentacao)
       ? dados.historicoMovimentacao.map((item: Record<string, any>) =>
           Movimentacao.deDados(item)
@@ -114,7 +126,7 @@ export class Equipamento {
   }
 
   paraDados(): Record<string, unknown> {
-    return {
+    return serializarDados({
       id: this.id,
       codigoBarrasInterno: this.codigoBarrasInterno,
       tipo: this.tipo,
@@ -127,6 +139,8 @@ export class Equipamento {
       posicaoNoLote: this.posicaoNoLote,
       statusRastreamento: this.statusRastreamento,
       historicoMovimentacao: this.historicoMovimentacao.map((item) => item.paraDados()),
-    };
+      ativo: this.ativo,
+      valorAquisicao: this.valorAquisicao,
+    });
   }
 }

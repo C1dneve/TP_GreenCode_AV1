@@ -1,4 +1,5 @@
 import { Contrato } from './Contrato';
+import { restaurarDatas, serializarDados } from '../utils/SerializadorDados';
 
 export class Organizacao {
   id: string;
@@ -11,6 +12,7 @@ export class Organizacao {
   dataCadastro: Date;
   ativo: boolean;
   contratoVigente: Contrato | null;
+  contratos: Contrato[];
 
   constructor(
     id: string,
@@ -32,6 +34,7 @@ export class Organizacao {
     this.dataCadastro = new Date(dataCadastro);
     this.ativo = true;
     this.contratoVigente = null;
+    this.contratos = [];
   }
 
   alterarEndereco(novoEndereco: string): void {
@@ -41,32 +44,55 @@ export class Organizacao {
     this.enderecoCompleto = novoEndereco;
   }
 
-  desativar(): void {
-    this.ativo = false;
+  desativar(): void { this.ativo = false; }
+  ativar(): void { this.ativo = true; }
+
+  adicionarContrato(contrato: Contrato): void {
+    if (this.contratoVigente?.estaVigente()) throw new Error("A organização já possui um contrato vigente.");
+    this.contratos = this.contratos.filter((item) => item.id !== contrato.id);
+    this.contratos.push(contrato);
+    this.contratoVigente = contrato;
+  }
+
+  cancelarContrato(): Contrato {
+    if (!this.contratoVigente) throw new Error("A organização não possui contrato para cancelar.");
+    const contrato = this.contratoVigente;
+    contrato.cancelar();
+    this.contratoVigente = null;
+    if (!this.contratos.some((item) => item.id === contrato.id)) this.contratos.push(contrato);
+    return contrato;
   }
 
   static deDados(dados: Record<string, any>): Organizacao {
+    const normalizados = restaurarDatas(dados);
     const organizacao = new Organizacao(
-      String(dados.id),
-      String(dados.razaoSocial),
-      String(dados.cnpj),
-      String(dados.inscricaoEstadual ?? ""),
-      String(dados.enderecoCompleto ?? ""),
-      String(dados.telefone ?? ""),
-      String(dados.email ?? ""),
-      new Date(dados.dataCadastro)
+      String(normalizados.id),
+      String(normalizados.razaoSocial),
+      String(normalizados.cnpj),
+      String(normalizados.inscricaoEstadual ?? ""),
+      String(normalizados.enderecoCompleto ?? ""),
+      String(normalizados.telefone ?? ""),
+      String(normalizados.email ?? ""),
+      new Date(normalizados.dataCadastro)
     );
 
-    organizacao.ativo = Boolean(dados.ativo);
-    organizacao.contratoVigente = dados.contratoVigente
-      ? Contrato.deDados(dados.contratoVigente)
-      : null;
+    organizacao.ativo = normalizados.ativo === undefined ? true : Boolean(normalizados.ativo);
+    const contratosDados = Array.isArray(normalizados.contratos) ? normalizados.contratos : [];
+    organizacao.contratos = contratosDados.map((item: Record<string, any>) => Contrato.deDados(item));
+    const contratoLegado = normalizados.contratoVigente ? Contrato.deDados(normalizados.contratoVigente) : null;
+    if (contratoLegado) {
+      const historico = organizacao.contratos.find((item) => item.id === contratoLegado.id);
+      organizacao.contratoVigente = historico ?? contratoLegado;
+      if (!historico) organizacao.contratos.push(contratoLegado);
+    } else {
+      organizacao.contratoVigente = null;
+    }
 
     return organizacao;
   }
 
   paraDados(): Record<string, unknown> {
-    return {
+    return serializarDados({
       id: this.id,
       razaoSocial: this.razaoSocial,
       cnpj: this.cnpj,
@@ -74,9 +100,13 @@ export class Organizacao {
       enderecoCompleto: this.enderecoCompleto,
       telefone: this.telefone,
       email: this.email,
-      dataCadastro: this.dataCadastro.toISOString(),
+      dataCadastro: this.dataCadastro,
       ativo: this.ativo,
       contratoVigente: this.contratoVigente?.paraDados() ?? null,
-    };
+      contratos: [
+        ...this.contratos.filter((contrato) => contrato.id !== this.contratoVigente?.id).map((contrato) => contrato.paraDados()),
+        ...(this.contratoVigente ? [this.contratoVigente.paraDados()] : []),
+      ],
+    });
   }
 }

@@ -18,11 +18,7 @@ npx tsc --noEmit
 npm test
 ```
 
-A suíte agregada executa:
-
-```text
-test1 -> test2 -> test3 -> test4
-```
+A suíte agregada atual executa `test1` a `test14` pelo script `npm test`. A lista abaixo é o histórico de cobertura inicial deste roteiro; para a descrição completa dos novos testes, confira os scripts `test:testN` no `package.json` e `src/tests/test5.ts` até `src/tests/test14.ts`.
 
 ### Testes individuais
 
@@ -303,3 +299,19 @@ senha alterar
 ```
 
 
+
+
+## 10. Fase 5 — refatorações P4–P7 e regressão
+
+Na pasta raiz, executar na ordem: `npm ci`, `npm run build`, `npx tsc --noEmit`, `npm test`. A suíte desta revisão inclui `test14`. Para conferir isoladamente os helpers desta etapa, execute `npm run test:test14`.
+
+O `test14` valida: datas de organização e contrato após serialização JSON, datas aninhadas de lote/equipamento/movimentação, conversão Date↔ISO, filtro inclusivo por período, rejeição de intervalo invertido, exceção de `exigirEncontrado` e constantes `ARQUIVOS`.
+
+Depois de a suíte passar, execute `npm start` e faça um smoke test no terminal: login, `org listar`, `lote listar`, `equip listar`, `auditoria listar --usuario admin`, `resumo`, retorno ao menu e logout. Use uma pasta de dados temporária conforme o roteiro de auditoria quando desejar isolamento. Não reutilize senhas reais em evidências.
+
+**Estado desta revisão:** o usuário deve confirmar a pipeline atualizada no Windows. A execução completa em Linux não foi realizada nesta entrega.
+
+
+## 6. Homologação final Windows — 18/10/2026
+
+O usuário confirmou nesta revisão `npm ci`, `npm run build`, `npx tsc --noEmit` e `npm test`, com `test1`–`test14` aprovados. O smoke test por `npm start` confirmou login, menu, navegação por setas, submenu, listagem em ambiente vazio, `resumo`, modo de comandos diretos e logout pela opção 11. O redesenho repetido do cabeçalho quando se pressionam as setas foi observado, mas não impediu a navegação nem o encerramento da sessão. A validação em Linux permanece pendente.

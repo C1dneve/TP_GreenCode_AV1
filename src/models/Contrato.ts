@@ -1,3 +1,5 @@
+import { restaurarDatas, serializarDados } from "../utils/SerializadorDados";
+
 export class Contrato {
   id: string;
   organizacaoId: string;
@@ -6,6 +8,8 @@ export class Contrato {
   clausulas: string[];
   valorMensal: number;
   renovacaoAutomatica: boolean;
+  ativo: boolean;
+  dataCancelamento: Date | null;
 
   constructor(
     id: string,
@@ -23,10 +27,18 @@ export class Contrato {
     this.clausulas = [...clausulas];
     this.valorMensal = valorMensal;
     this.renovacaoAutomatica = renovacaoAutomatica;
+    this.ativo = true;
+    this.dataCancelamento = null;
   }
 
   estaVigente(): boolean {
-    return new Date() <= this.dataVencimento;
+    return this.ativo && new Date() <= this.dataVencimento;
+  }
+
+  cancelar(): void {
+    if (!this.ativo) throw new Error("O contrato já está cancelado.");
+    this.ativo = false;
+    this.dataCancelamento = new Date();
   }
 
   renovar(novoVencimento: Date): void {
@@ -37,26 +49,32 @@ export class Contrato {
   }
 
   static deDados(dados: Record<string, any>): Contrato {
-    return new Contrato(
-      String(dados.id),
-      String(dados.organizacaoId),
-      new Date(dados.dataVencimento),
-      Number(dados.valorMensal),
-      Array.isArray(dados.clausulas) ? dados.clausulas.map(String) : [],
-      Boolean(dados.renovacaoAutomatica),
-      new Date(dados.dataAssinatura)
+    const normalizados = restaurarDatas(dados);
+    const contrato = new Contrato(
+      String(normalizados.id),
+      String(normalizados.organizacaoId),
+      new Date(normalizados.dataVencimento),
+      Number(normalizados.valorMensal),
+      Array.isArray(normalizados.clausulas) ? normalizados.clausulas.map(String) : [],
+      Boolean(normalizados.renovacaoAutomatica),
+      new Date(normalizados.dataAssinatura)
     );
+    contrato.ativo = normalizados.ativo === undefined ? true : Boolean(normalizados.ativo);
+    contrato.dataCancelamento = normalizados.dataCancelamento ? new Date(normalizados.dataCancelamento) : null;
+    return contrato;
   }
 
   paraDados(): Record<string, unknown> {
-    return {
+    return serializarDados({
       id: this.id,
       organizacaoId: this.organizacaoId,
-      dataAssinatura: this.dataAssinatura.toISOString(),
-      dataVencimento: this.dataVencimento.toISOString(),
+      dataAssinatura: this.dataAssinatura,
+      dataVencimento: this.dataVencimento,
       clausulas: [...this.clausulas],
       valorMensal: this.valorMensal,
       renovacaoAutomatica: this.renovacaoAutomatica,
-    };
+      ativo: this.ativo,
+      dataCancelamento: this.dataCancelamento,
+    });
   }
 }

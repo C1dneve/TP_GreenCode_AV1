@@ -1,5 +1,6 @@
 import { Equipamento } from './Equipamento';
 import { StatusLote } from './enums/StatusLote';
+import { restaurarDatas, serializarDados } from '../utils/SerializadorDados';
 
 export class Lote {
   id: string;
@@ -10,6 +11,7 @@ export class Lote {
   equipamentos: Equipamento[];
   statusProcessamento: StatusLote;
   observacoes: string;
+  ativo: boolean;
 
   constructor(
     id: string,
@@ -27,7 +29,11 @@ export class Lote {
     this.equipamentos = [];
     this.statusProcessamento = StatusLote.RECEBIDO;
     this.observacoes = observacoes;
+    this.ativo = true;
   }
+
+  desativar(): void { this.ativo = false; }
+  ativar(): void { this.ativo = true; }
 
   adicionarEquipamento(equipamento: Equipamento): void {
     equipamento.loteId = this.id;
@@ -82,33 +88,36 @@ export class Lote {
   }
 
   static deDados(dados: Record<string, any>): Lote {
+    const normalizados = restaurarDatas(dados);
     const lote = new Lote(
-      String(dados.id),
-      String(dados.organizacaoId),
-      String(dados.notaFiscal),
-      String(dados.transportadora),
-      String(dados.observacoes ?? ''),
-      new Date(dados.dataEntrada)
+      String(normalizados.id),
+      String(normalizados.organizacaoId),
+      String(normalizados.notaFiscal),
+      String(normalizados.transportadora),
+      String(normalizados.observacoes ?? ''),
+      new Date(normalizados.dataEntrada)
     );
 
-    lote.statusProcessamento = dados.statusProcessamento as StatusLote;
-    lote.equipamentos = Array.isArray(dados.equipamentos)
-      ? dados.equipamentos.map((item: Record<string, any>) => Equipamento.deDados(item))
+    lote.statusProcessamento = normalizados.statusProcessamento as StatusLote;
+    lote.ativo = normalizados.ativo === undefined ? true : Boolean(normalizados.ativo);
+    lote.equipamentos = Array.isArray(normalizados.equipamentos)
+      ? normalizados.equipamentos.map((item: Record<string, any>) => Equipamento.deDados(item))
       : [];
 
     return lote;
   }
 
   paraDados(): Record<string, unknown> {
-    return {
+    return serializarDados({
       id: this.id,
-      dataEntrada: this.dataEntrada.toISOString(),
+      dataEntrada: this.dataEntrada,
       organizacaoId: this.organizacaoId,
       notaFiscal: this.notaFiscal,
       transportadora: this.transportadora,
       equipamentos: this.equipamentos.map((equipamento) => equipamento.paraDados()),
       statusProcessamento: this.statusProcessamento,
       observacoes: this.observacoes,
-    };
+      ativo: this.ativo,
+    });
   }
 }

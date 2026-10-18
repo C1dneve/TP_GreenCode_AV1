@@ -1,3 +1,4 @@
+import { ARQUIVOS } from "../persistencia/ArquivosPersistencia";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
@@ -100,7 +101,7 @@ try {
     .readdirSync(diretorioJournal)
     .filter((arquivo) => /^journal\.transacoes\.\d/.test(arquivo));
   assertEqual(arquivosRotacionados.length > 0, true);
-  assertEqual(fs.statSync(path.join(diretorioJournal, "journal.transacoes")).size < 10 * 1024 * 1024, true);
+  assertEqual(fs.statSync(path.join(diretorioJournal, ARQUIVOS.JOURNAL)).size < 10 * 1024 * 1024, true);
   fs.rmSync(diretorioJournal, { recursive: true, force: true });
   console.log("Rotação do journal ok👍");
 

@@ -203,3 +203,10 @@ As melhorias implementadas nesta rodada permanecem de baixo impacto e estão con
 - observabilidade do journal;
 - cobertura de testes;
 - documentação.
+
+
+## Atualização técnica — Fase 5 (17/10/2026)
+
+A etapa 1 de fechamento estrutural introduz um serializador compartilhado (`src/utils/SerializadorDados.ts`), um filtro comum por período (`src/utils/FiltrarPorPeriodo.ts`), `exigirEncontrado` para referências ausentes, e o catálogo `ARQUIVOS` para nomes físicos de persistência/journal. Os testes usam agora `criarAmbiente` e `logarComo` compartilhados; o conjunto de autorização de `test4` é orientado por casos em tabela.
+
+O registro de decisões está em `LOG_DECISOES_ARQUITETURAIS.md`, e os critérios/restrições de validação ficam em `RELATORIO_FASE5_ETAPA1_2.md`. Esta atualização não altera a decisão de usar persistência em arquivos cifrados para a AV1; não implementa componentes da AV2. A versão com `test14` foi homologada no Windows em 18/10/2026: o usuário confirmou `npm ci`, `npm run build`, `npx tsc --noEmit`, `npm test` (test1–test14) e smoke test manual de login, navegação, comandos diretos, resumo e logout. Linux continua não validado.

@@ -1,47 +1,9 @@
 import { PapelUsuario } from "../models/enums/PapelUsuario";
 import { ServicoAutenticacao } from "./ServicoAutenticacao";
+import { COMANDOS_GERAIS, obterComandosPorPapel } from "../cli/RegistroComandos";
 
-export const COMANDOS_POR_PAPEL: Record<PapelUsuario, string[]> = {
-  [PapelUsuario.ADMINISTRADOR]: [
-    "usuario criar",
-    "org criar",
-    "org listar",
-    "org renovar-contrato",
-    "lote criar",
-    "lote triagem",
-    "lote consultar-periodo",
-    "equip cadastrar",
-    "equip mover",
-    "equip codigo-barras",
-    "equip rastrear",
-    "equip atualizar-estado",
-    "relatorio organizacao",
-    "relatorio status",
-    "relatorio financeiro",
-  ],
-  [PapelUsuario.OPERADOR_CADASTRO]: [
-    "org criar",
-    "org listar",
-    "org renovar-contrato",
-  ],
-  [PapelUsuario.GESTOR_ALMOXARIFADO]: [
-    "lote criar",
-    "lote triagem",
-    "lote consultar-periodo",
-    "equip cadastrar",
-    "equip mover",
-    "equip codigo-barras",
-    "equip atualizar-estado",
-  ],
-  [PapelUsuario.AUDITOR]: [
-    "equip rastrear",
-    "relatorio organizacao",
-    "relatorio status",
-    "relatorio financeiro",
-  ],
-};
-
-export const COMANDOS_GERAIS = ["ajuda", "logout", "senha alterar"];
+export { COMANDOS_GERAIS };
+export const COMANDOS_POR_PAPEL: Record<PapelUsuario, string[]> = obterComandosPorPapel();
 
 /**
  * Centraliza a decisão de autorização por papel.

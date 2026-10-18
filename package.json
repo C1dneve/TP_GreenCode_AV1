@@ -10,7 +10,17 @@
     "test:test3": "tsx src/tests/test3.ts",
     "test:test4": "tsx src/tests/test4.ts",
     "start": "tsx src/index.ts",
-    "test": "npm run test:test1 && npm run test:test2 && npm run test:test3 && npm run test:test4"
+    "test:test5": "tsx src/tests/test5.ts",
+    "test": "npm run test:test1 && npm run test:test2 && npm run test:test3 && npm run test:test4 && npm run test:test5 && npm run test:test6 && npm run test:test7 && npm run test:test8 && npm run test:test9 && npm run test:test10 && npm run test:test11 && npm run test:test12 && npm run test:test13 && npm run test:test14",
+    "test:test6": "tsx src/tests/test6.ts",
+    "test:test7": "tsx src/tests/test7.ts",
+    "test:test8": "tsx src/tests/test8.ts",
+    "test:test9": "tsx src/tests/test9.ts",
+    "test:test10": "tsx src/tests/test10.ts",
+    "test:test11": "tsx src/tests/test11.ts",
+    "test:test12": "tsx src/tests/test12.ts",
+    "test:test13": "tsx src/tests/test13.ts",
+    "test:test14": "tsx src/tests/test14.ts"
   },
   "author": "",
   "license": "ISC",
@@ -19,5 +29,9 @@
     "ts-node": "^10.9.2",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "@inquirer/core": "^10.3.2",
+    "picocolors": "^1.1.1"
   }
 }

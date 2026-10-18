@@ -1,3 +1,5 @@
+import { restaurarDatas, serializarDados } from "../utils/SerializadorDados";
+
 export class Movimentacao {
   readonly id: string;
   readonly equipamentoId: string;
@@ -26,26 +28,27 @@ export class Movimentacao {
   }
 
   static deDados(dados: Record<string, any>): Movimentacao {
+    const normalizados = restaurarDatas(dados);
     return new Movimentacao(
-      String(dados.id),
-      String(dados.equipamentoId),
-      String(dados.origem),
-      String(dados.destino),
-      String(dados.responsavel),
-      String(dados.observacao ?? ""),
-      new Date(dados.dataHora)
+      String(normalizados.id),
+      String(normalizados.equipamentoId),
+      String(normalizados.origem),
+      String(normalizados.destino),
+      String(normalizados.responsavel),
+      String(normalizados.observacao ?? ""),
+      new Date(normalizados.dataHora)
     );
   }
 
   paraDados(): Record<string, unknown> {
-    return {
+    return serializarDados({
       id: this.id,
       equipamentoId: this.equipamentoId,
-      dataHora: this.dataHora.toISOString(),
+      dataHora: this.dataHora,
       origem: this.origem,
       destino: this.destino,
       responsavel: this.responsavel,
       observacao: this.observacao,
-    };
+    });
   }
 }

@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "crypto";
 import { Autenticavel } from "./Autenticavel";
 import { PapelUsuario } from "./enums/PapelUsuario";
+import { restaurarDatas, serializarDados } from "../utils/SerializadorDados";
 
 /**
  * Representa uma credencial persistível do sistema.
@@ -15,10 +16,14 @@ export class Credencial implements Autenticavel {
   private salt: string;
   private ultimoAcesso: Date;
   private papel: PapelUsuario;
+  private nome: string;
+  private ativo: boolean;
 
-  constructor(usuario: string, senha: string, papel: PapelUsuario) {
+  constructor(usuario: string, senha: string, papel: PapelUsuario, nome: string = usuario) {
     this.usuario = usuario;
     this.papel = papel;
+    this.nome = nome.trim() || usuario;
+    this.ativo = true;
     this.ultimoAcesso = new Date();
     this.salt = randomBytes(16).toString("hex");
     this.hashSenha = this.gerarHash(senha, this.salt);
@@ -71,27 +76,45 @@ export class Credencial implements Autenticavel {
     return this.papel;
   }
 
+  obterNome(): string { return this.nome; }
+  estaAtiva(): boolean { return this.ativo; }
+
+  atualizarDados(nome: string, papel: PapelUsuario): void {
+    if (!nome.trim()) throw new Error("O nome do usuário não pode ser vazio.");
+    if (!Object.values(PapelUsuario).includes(papel)) throw new Error("Papel de usuário inválido.");
+    this.nome = nome.trim();
+    this.papel = papel;
+  }
+
+  desativar(): void { this.ativo = false; }
+  ativar(): void { this.ativo = true; }
+
   obterUltimoAcesso(): Date {
     return new Date(this.ultimoAcesso);
   }
 
   paraDados(): Record<string, unknown> {
-    return {
+    return serializarDados({
       usuario: this.usuario,
       hashSenha: this.hashSenha,
       salt: this.salt,
-      ultimoAcesso: this.ultimoAcesso.toISOString(),
+      ultimoAcesso: this.ultimoAcesso,
       papel: this.papel,
-    };
+      nome: this.nome,
+      ativo: this.ativo,
+    });
   }
 
   static deDados(dados: Record<string, any>): Credencial {
+    const normalizados = restaurarDatas(dados);
     const credencial = Object.create(Credencial.prototype) as Credencial;
-    credencial.usuario = String(dados.usuario);
-    credencial.hashSenha = String(dados.hashSenha);
-    credencial.salt = String(dados.salt);
-    credencial.ultimoAcesso = new Date(dados.ultimoAcesso);
-    credencial.papel = dados.papel as PapelUsuario;
+    credencial.usuario = String(normalizados.usuario);
+    credencial.hashSenha = String(normalizados.hashSenha);
+    credencial.salt = String(normalizados.salt);
+    credencial.ultimoAcesso = new Date(normalizados.ultimoAcesso);
+    credencial.papel = normalizados.papel as PapelUsuario;
+    credencial.nome = String(normalizados.nome ?? normalizados.usuario);
+    credencial.ativo = normalizados.ativo === undefined ? true : Boolean(normalizados.ativo);
     return credencial;
   }
 }

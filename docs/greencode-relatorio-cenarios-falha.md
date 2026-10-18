@@ -183,3 +183,17 @@ A auditoria final também confirmou:
 - fluxo integrado CLI → serviços → persistência.
 
 Não foram identificados bloqueios funcionais na validação final.
+
+
+## 9. Adendo Fase 5 — regressões estruturais e resultado da validação
+
+| Área | Caso a cobrir | Resultado esperado | Estado nesta entrega |
+|---|---|---|---|
+| Serialização | Organização com contrato e lote com equipamento/movimentação após JSON round-trip | Campos de data retornam como objetos `Date`; valores ISO são preservados | Teste `test14` aprovado na pipeline `npm test` do Windows, conforme registro de 18/10/2026 |
+| Período | Filtrar registros num intervalo válido | Só os registros dentro do intervalo são retornados | Coberto por `test14`; regressão da CLI permanece também em `test9` |
+| Período inválido | Data inicial posterior à data final | Exceção/mensagem padronizada, sem seguir com o filtro | Coberto por `test14` e pelos testes já existentes |
+| Entidade ausente | Buscar entidade inexistente | Erro compreensível indicando a entidade | Coberto por `test14`; helper aplicado a serviços de lote/equipamento/organização |
+| Nome de arquivo | Acessar arquivo de persistência/journal | Nomes físicos mantidos e consultados via `ARQUIVOS` | Refatorado; `test14` verifica valores representativos |
+| Ambiente de testes | Criar ambiente descartável e autenticar papel | Dados isolados por diretório temporário; login segue convenção do helper | Helpers extraídos para `testUtils.ts`; `test4`/`test5` usam o helper |
+
+Atualização de 18/10/2026: o usuário confirmou `npm ci`, `npm run build`, `npx tsc --noEmit` e `npm test`, com `test1`–`test14` aprovados no Windows. A pipeline de Linux é uma verificação separada e permanece pendente.
